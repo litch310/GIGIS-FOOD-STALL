@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+
+# Database exports can contain customer data; only the menu seed is committed
+*.sql
+!gigis_food_house.sql
+
+# Keys and logs
+*.pem
+*.key
+*.ppk
+id_rsa*
+*.log
+error_log
+
+.vscode/

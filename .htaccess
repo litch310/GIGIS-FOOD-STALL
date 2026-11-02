@@ -1,0 +1,9 @@
+# Apache (shared hosting) rules. PHP's built-in dev server ignores this file.
+
+# No folder listings, e.g. of IMAGES/menu/
+Options -Indexes
+
+# Keep .env (database and SMTP passwords), SQL dumps and docs away from browsers
+<FilesMatch "^\.|\.(sql|md)$">
+    Require all denied
+</FilesMatch>
