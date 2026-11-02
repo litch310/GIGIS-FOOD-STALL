@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f3ed">
     <title>Gigi's Food House</title>
     <link href="style.css" rel="stylesheet">
 </head>
@@ -10,7 +11,10 @@
 
     <header class="site-header">
         <a class="brand" href="#catalog" onclick="switchNavTab('catalog'); return false;"><span class="brand-mark">G</span><span>Gigi's <em>Food</em> House</span></a>
-        <nav class="site-nav">
+        <button class="cart-link mobile-cart role-buyer" onclick="openCartModal()" aria-label="Open your tray">Tray <span class="js-cart-count">0</span></button>
+        <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu" onclick="toggleNav()"><span></span><span></span></button>
+        <nav class="site-nav" id="site-nav">
+            <span class="nav-indicator" aria-hidden="true"></span>
             <button class="tab-link active" data-tab="catalog" onclick="switchNavTab('catalog')">Menu</button>
             <button class="tab-link role-customer" data-tab="my-orders" onclick="switchNavTab('my-orders')">My orders <em id="nav-open-orders"></em></button>
             <button class="tab-link role-owner" data-tab="owner-orders" onclick="switchNavTab('owner-orders')">Orders <em id="nav-owner-open"></em></button>
@@ -18,7 +22,7 @@
             <button class="tab-link role-manager" data-tab="manage-menu" onclick="switchNavTab('manage-menu')">Menu manager</button>
             <button class="tab-link role-owner" data-tab="owner-vendors" onclick="switchNavTab('owner-vendors')">Vendors <em id="nav-pending-vendors"></em></button>
             <button class="tab-link role-owner" data-tab="owner-customers" onclick="switchNavTab('owner-customers')">Customers</button>
-            <button class="cart-link role-buyer" onclick="openCartModal()">Your tray <span id="header-cart-count">0</span></button>
+            <button class="cart-link desktop-cart role-buyer" onclick="openCartModal()">Your tray <span class="js-cart-count">0</span></button>
             <span class="user-name role-signed-in" id="header-user-name"></span>
             <button class="nav-button role-signed-in" onclick="logout()">Sign out</button>
             <button class="tab-link role-guest" data-tab="auth" onclick="switchNavTab('auth')">Sign in</button>
@@ -104,10 +108,7 @@
                     </label>
                 </fieldset>
                 <label>Full name<input name="full_name" required maxlength="100" autocomplete="name"></label>
-                <div class="form-row">
-                    <label>Email<input type="email" name="email" required autocomplete="email"></label>
-                    <label>Phone <span id="phone-optional">(optional)</span><input name="phone" maxlength="20" autocomplete="tel"></label>
-                </div>
+                <label>Email<input type="email" name="email" required autocomplete="email"></label>
                 <div class="vendor-fields" id="vendor-fields" style="display: none;">
                     <p class="field-note">Vendor accounts are for Gigi's Food House staff. Gigi approves your account first, then you can add new dishes, update prices, mark dishes sold out and remove dishes that are no longer served.</p>
                 </div>

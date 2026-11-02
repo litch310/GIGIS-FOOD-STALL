@@ -109,6 +109,7 @@
             appState.user = user;
             var role = user ? user.role : 'guest';
             document.body.dataset.role = role;
+            moveNavIndicator();
             document.body.classList.toggle('can-edit-menu', canEditMenu());
             document.getElementById('header-user-name').textContent = user ? user.full_name : '';
             document.querySelectorAll('.js-first-name').forEach(function(el) {
@@ -153,8 +154,6 @@
             var form = document.getElementById('register-form');
             var vendor = form.elements['account_type'].value === 'vendor';
             document.getElementById('vendor-fields').style.display = vendor ? '' : 'none';
-            form.elements['phone'].required = vendor;
-            document.getElementById('phone-optional').textContent = vendor ? '(for the owner to reach you)' : '(optional)';
             form.querySelector('button[type="submit"]').innerHTML = (vendor ? 'Create vendor account' : 'Create account') + ' <span>→</span>';
         }
 
@@ -361,7 +360,7 @@
             appState.activeCategory = String(catId);
             appState.catalogPage = 1;
             renderCategoryChips();
-            renderCatalog();
+            renderCatalog(true);
         }
 
         function onSearchInput() {
@@ -370,8 +369,10 @@
             renderCatalog();
         }
 
-        function renderCatalog() {
+        // stagger: cards rise in one by one (category and page changes, not search typing)
+        function renderCatalog(stagger) {
             var container = document.getElementById('products-grid-container');
+            container.classList.toggle('stagger', !!stagger);
 
             var filtered = appState.products.filter(function(p) {
                 var matchesCat = (appState.activeCategory === 'all' || String(p.category_id) === String(appState.activeCategory));
@@ -391,13 +392,13 @@
                 container.innerHTML = '<p class="empty-state">Nothing on the menu matches that. Try a different dish or category.</p>';
             } else {
                 var html = '';
-                pagedItems.forEach(function(p) {
+                pagedItems.forEach(function(p, i) {
                     var badge = !p.is_available ? '<span class="product-rank sold-out">Sold out</span>'
                         : (p.rank > 0 ? '<span class="product-rank">Best seller #' + p.rank + '</span>' : '');
                     var buyButton = (!canBuy() || !p.is_available) ? ''
                         : '<button class="add-button" title="Add ' + escapeHtml(p.name) + ' to tray" onclick="addToCart(' + p.product_id + ', this)">+</button>';
 
-                    html += '<article class="product-card' + (p.is_available ? '' : ' is-sold-out') + '">' +
+                    html += '<article class="product-card' + (p.is_available ? '' : ' is-sold-out') + '" style="--i: ' + i + '">' +
                         '<div class="product-image">' +
                             '<img src="' + escapeHtml(productImage(p)) + '" alt="' + escapeHtml(p.name) + '" loading="lazy">' +
                             badge +
@@ -421,7 +422,7 @@
 
             renderPagination('catalog-pagination', appState.catalogPage, totalPages, function(newPage) {
                 appState.catalogPage = newPage;
-                renderCatalog();
+                renderCatalog(true);
                 document.getElementById('menu').scrollIntoView();
             });
         }
@@ -454,7 +455,7 @@
         // Every tray change ends here, so this also saves the tray for the next visit
         function updateCartHeaderBadge() {
             var totalItems = appState.cart.reduce(function(sum, item) { return sum + item.quantity; }, 0);
-            document.getElementById('header-cart-count').textContent = totalItems;
+            document.querySelectorAll('.js-cart-count').forEach(function(el) { el.textContent = totalItems; });
             saveCart();
         }
 
@@ -1053,17 +1054,33 @@
         // ------------------------------------------------------------
         // UI helpers
         // ------------------------------------------------------------
+        // A closing modal keeps .open while its exit animation (.closing) plays
+        var modalCloseTimers = {};
         function openModal(id) {
-            document.getElementById(id).classList.add('open');
+            var modal = document.getElementById(id);
+            clearTimeout(modalCloseTimers[id]);
+            modal.classList.remove('closing');
+            modal.classList.add('open');
             document.body.style.overflow = 'hidden';
         }
 
         function closeModal(id) {
-            document.getElementById(id).classList.remove('open');
-            if (!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+            var modal = document.getElementById(id);
+            if (!modal.classList.contains('open') || modal.classList.contains('closing')) return;
+            var finish = function() {
+                modal.classList.remove('open', 'closing');
+                if (!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+            };
+            if (reducedMotion.matches) {
+                finish();
+                return;
+            }
+            modal.classList.add('closing');
+            modalCloseTimers[id] = setTimeout(finish, 240);
         }
 
         document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeNav();
             if (e.key === 'Escape') {
                 document.querySelectorAll('.modal-overlay.open').forEach(function(m) { closeModal(m.id); });
             }
@@ -1089,6 +1106,85 @@
             'manage-menu': ['owner', 'vendor']
         };
 
+        // ------------------------------------------------------------
+        // Page transitions: the new page is revealed as a circle growing from
+        // where the visitor tapped (View Transitions API, see style.css)
+        // ------------------------------------------------------------
+        var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        var lastPointer = null;
+        document.addEventListener('pointerdown', function(e) {
+            lastPointer = { x: e.clientX, y: e.clientY, time: Date.now() };
+        }, true);
+
+        function runPageTransition(update) {
+            // Skip on page load (no tap yet), when motion is reduced, or without browser support
+            if (!lastPointer || !document.startViewTransition || reducedMotion.matches || document.hidden) {
+                update();
+                return;
+            }
+            var recentTap = Date.now() - lastPointer.time < 1500;
+            var root = document.documentElement;
+            root.style.setProperty('--reveal-x', (recentTap ? lastPointer.x : window.innerWidth / 2) + 'px');
+            root.style.setProperty('--reveal-y', (recentTap ? lastPointer.y : window.innerHeight / 3) + 'px');
+            root.classList.add('page-transition');
+            document.startViewTransition(update).finished.finally(function() {
+                root.classList.remove('page-transition');
+            });
+        }
+
+        // Tomato underline that glides to the active tab (desktop nav)
+        function moveNavIndicator() {
+            var indicator = document.querySelector('.nav-indicator');
+            var active = document.querySelector('.site-nav .tab-link.active');
+            if (!indicator) return;
+            if (!active || !active.offsetParent) {
+                indicator.style.opacity = '0';
+                return;
+            }
+            indicator.style.opacity = '1';
+            indicator.style.width = active.offsetWidth + 'px';
+            indicator.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+        }
+        if (window.ResizeObserver) {
+            var navObserver = new ResizeObserver(moveNavIndicator);
+            document.addEventListener('DOMContentLoaded', function() {
+                navObserver.observe(document.querySelector('.site-nav'));
+                document.querySelectorAll('.site-nav .tab-link').forEach(function(btn) { navObserver.observe(btn); });
+            });
+        }
+        if (document.fonts) document.fonts.ready.then(moveNavIndicator);
+
+        // Full-screen menu on phones
+        function toggleNav() {
+            if (document.body.classList.contains('nav-open')) closeNav();
+            else openNav();
+        }
+
+        function openNav() {
+            var toggle = document.getElementById('nav-toggle');
+            document.body.classList.add('nav-open');
+            toggle.setAttribute('aria-expanded', 'true');
+            toggle.setAttribute('aria-label', 'Close menu');
+        }
+
+        function closeNav() {
+            var toggle = document.getElementById('nav-toggle');
+            if (!document.body.classList.contains('nav-open')) return;
+            document.body.classList.remove('nav-open');
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.setAttribute('aria-label', 'Open menu');
+        }
+
+        // Sticky header gets a soft shadow once the page scrolls under it
+        window.addEventListener('scroll', function() {
+            document.querySelector('.site-header').classList.toggle('scrolled', window.scrollY > 8);
+        }, { passive: true });
+
+        window.matchMedia('(min-width: 761px)').addEventListener('change', function(e) {
+            if (e.matches) closeNav();
+            moveNavIndicator();
+        });
+
         function switchNavTab(tabId, forceAuth) {
             var allowed = TAB_ROLES[tabId];
             var role = appState.user ? appState.user.role : 'guest';
@@ -1096,15 +1192,29 @@
             if (tabId === 'auth' && appState.user && !forceAuth) tabId = 'catalog';
             if (tabId !== 'auth') clearPendingVerificationEmail();
 
+            var changed = appState.activeTab !== tabId;
             appState.activeTab = tabId;
             document.querySelectorAll('.tab-link').forEach(function(btn) {
                 btn.classList.toggle('active', btn.dataset.tab === tabId);
             });
-            document.querySelectorAll('.tab-view').forEach(function(section) {
-                section.classList.toggle('active', section.id === 'tab-' + tabId);
-            });
+            moveNavIndicator();
+
+            var showView = function() {
+                document.querySelectorAll('.tab-view').forEach(function(section) {
+                    section.classList.toggle('active', section.id === 'tab-' + tabId);
+                });
+                window.scrollTo({ top: 0, behavior: 'instant' });
+            };
+            // Leaving through the mobile menu: the closing menu itself reveals the new page
+            if (document.body.classList.contains('nav-open')) {
+                showView();
+                closeNav();
+            } else if (changed) {
+                runPageTransition(showView);
+            } else {
+                showView();
+            }
             if (history.replaceState) history.replaceState(null, '', tabId === 'catalog' ? location.pathname : '#' + tabId);
-            window.scrollTo(0, 0);
 
             if (tabId === 'my-orders') loadMyOrders();
             if (tabId === 'owner-orders') loadOwnerDashboard();

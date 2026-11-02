@@ -47,15 +47,12 @@ if ($action === 'register') {
     $accountType = input('account_type', 'customer');
     $name        = input('full_name');
     $email       = strtolower(input('email'));
-    $phone       = input('phone');
     $password    = input('password');
 
     // Owner accounts are never self-registered
     if (!in_array($accountType, ['customer', 'vendor'], true)) fail('Please choose an account type.');
     if ($name === '' || mb_strlen($name) > 100) fail('Please enter your name.');
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Please enter a valid email.');
-    if ($phone !== '' && !preg_match('/^[0-9+\- ]{7,20}$/', $phone)) fail('Please enter a valid phone number.');
-    if ($accountType === 'vendor' && $phone === '') fail('Vendors need a contact number so the owner can reach you.');
     if (
         mb_strlen($password, 'UTF-8') < 8
         || !preg_match('/[a-z]/', $password)
@@ -84,9 +81,9 @@ if ($action === 'register') {
     try {
         $expiresAt = gmdate('Y-m-d H:i:s', time() + 24 * 60 * 60);
         query(
-            "INSERT INTO pending_accounts (full_name, email, phone, password_hash, role, status, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())",
-            'sssssss',
-            [$name, $email, $phone !== '' ? $phone : null, password_hash($password, PASSWORD_DEFAULT), $accountType, $status, $expiresAt]
+            "INSERT INTO pending_accounts (full_name, email, password_hash, role, status, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())",
+            'ssssss',
+            [$name, $email, password_hash($password, PASSWORD_DEFAULT), $accountType, $status, $expiresAt]
         );
         $pendingId = (int)$con->insert_id;
         $con->commit();
