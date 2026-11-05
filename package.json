@@ -1,0 +1,16 @@
+{
+  "name": "gigis-food-house",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "formidable": "^3.5.2",
+    "pg": "^8.13.1"
+  },
+  "scripts": {
+    "check": "node --check api/index.js"
+  }
+}

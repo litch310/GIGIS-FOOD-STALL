@@ -5,6 +5,7 @@
 # Database exports can contain customer data; only the menu seed is committed
 *.sql
 !gigis_food_house.sql
+!supabase_schema.sql
 
 # Keys and logs
 *.pem
@@ -15,3 +16,4 @@ id_rsa*
 error_log
 
 .vscode/
+node_modules/

@@ -37,3 +37,30 @@ After registration, the app opens a waiting-for-verification screen with the res
 Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, and `APP_BASE_URL` in the ignored local `.env` file or your deployment's secret manager. Gmail SMTP uses `smtp.gmail.com` on port `587` with STARTTLS. Use an app password for `SMTP_PASSWORD`, and set `SMTP_FROM` to an address permitted by that SMTP account. `APP_BASE_URL` must be the public root URL of this app (for example, `https://example.com`); use the actual local web-server URL for development. Never commit SMTP credentials.
 
 The SQL import seeds the menu only. It does not create demo users or orders with shared passwords.
+
+## Supabase database script
+
+Supabase uses PostgreSQL, while `gigis_food_house.sql` is a MySQL dump for local
+phpMyAdmin. To initialize a Supabase project, paste
+[`supabase_schema.sql`](./supabase_schema.sql) into the Supabase SQL Editor.
+That script creates the complete application schema, seeds the nine menu items,
+and creates a temporary owner account:
+
+- Email: `admin@gigisfoodhouse.com`
+- Password: `ChangeMe123!`
+
+Change the temporary password immediately after signing in. The current PHP
+backend still uses MySQLi and must be migrated to PostgreSQL before it can use
+this Supabase database or be deployed as-is to Vercel.
+
+## Vercel migration
+
+The Vercel entrypoint is [`api/index.js`](./api/index.js), and the static
+frontend is [`index.html`](./index.html). In Vercel, add these environment
+variables:
+
+- `DATABASE_URL`: Supabase dashboard > Project Settings > Database > Connection string (URI)
+- `SESSION_SECRET`: a long random string
+
+Deploy from the repository root. The existing PHP files remain available for
+local MySQL development; Vercel uses the Node.js API and `index.html`.

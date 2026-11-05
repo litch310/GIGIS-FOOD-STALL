@@ -28,8 +28,8 @@ $user = getenv('DB_USER') ?: 'root';
 $password = getenv('DB_PASSWORD');
 $password = $password === false ? '' : $password;
 $dbname = getenv('DB_NAME') ?: 'gigis_food_house';
-$portValue = getenv('DB_PORT') ?: '3306';
-$port = filter_var($portValue, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 65535]]) ?: 3306;
+$portValue = getenv('DB_PORT') ?: '3307';
+$port = filter_var($portValue, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 65535]]) ?: 3307;
 
 mysqli_report(MYSQLI_REPORT_OFF);
 $con = @new mysqli($host, $user, $password, $dbname, $port);
