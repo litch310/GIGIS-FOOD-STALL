@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const api = require('./api/index.js');
 const { close } = require('./lib/db');
+const { ensureSchema } = require('./lib/schema');
 
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 3000);
@@ -84,7 +85,15 @@ const server = http.createServer((req, res) => {
   return notFound(res);
 });
 
-server.listen(PORT, () => console.log(`Gigi's Food House listening on port ${PORT}`));
+ensureSchema()
+  .then(created => {
+    if (created) console.log('Empty database: created the tables and seed menu from schema.sql.');
+    server.listen(PORT, () => console.log(`Gigi's Food House listening on port ${PORT}`));
+  })
+  .catch(error => {
+    console.error('Could not prepare the database. Check DATABASE_URL.', error.message);
+    process.exit(1);
+  });
 
 function shutdown() {
   server.close(() => close().finally(() => process.exit(0)));

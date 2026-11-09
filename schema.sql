@@ -1,10 +1,11 @@
--- Gigi's Food House - Supabase/PostgreSQL schema and seed data
--- Paste this file into Supabase Dashboard > SQL Editor and run it once.
+-- Gigi's Food House - PostgreSQL schema and seed data (Render Postgres)
 --
--- Supabase uses PostgreSQL, so this file is separate from
--- gigis_food_house.sql, which is for local MySQL/phpMyAdmin.
--- Re-running this file DELETES all accounts, orders and menu changes and
--- resets the tables to the seed menu below.
+-- server.js runs this file automatically the first time it starts against
+-- an empty database. It is separate from gigis_food_house.sql, which is for
+-- local MySQL/phpMyAdmin.
+--
+-- Running this file by hand DELETES all accounts, orders and menu changes
+-- and resets the tables to the seed menu below.
 --
 -- No login is created here. After running it, create the owner account with
 -- `npm run create-owner` (see README.md).
@@ -174,7 +175,7 @@ CREATE TRIGGER orders_updated_at
 BEFORE UPDATE ON orders
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-CREATE VIEW v_order_summary WITH (security_invoker = true) AS
+CREATE VIEW v_order_summary AS
 SELECT
   o.order_id,
   o.customer_id,
@@ -214,19 +215,3 @@ INSERT INTO products (
 SELECT setval(pg_get_serial_sequence('categories', 'category_id'), 4, true);
 SELECT setval(pg_get_serial_sequence('products', 'product_id'), 9, true);
 
--- The app connects as the database owner, which bypasses row level security.
--- Enabling RLS with no policies blocks these tables from Supabase's public
--- REST API (the anon and authenticated keys), which would otherwise expose
--- password hashes and orders to anyone holding the project's anon key.
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE account_verifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE account_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pending_accounts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pending_account_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth_attempts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE product_images ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;

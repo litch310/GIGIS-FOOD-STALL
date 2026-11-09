@@ -1,5 +1,5 @@
 'use strict';
-// One-time owner account bootstrap for the Supabase database (port of
+// One-time owner account bootstrap for the Postgres database (port of
 // setup_owner.php). Reads DATABASE_URL, OWNER_NAME, OWNER_EMAIL,
 // OWNER_PASSWORD and optional OWNER_PHONE from the environment.
 const bcrypt = require('bcryptjs');

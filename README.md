@@ -38,39 +38,52 @@ Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM
 
 The SQL import seeds the menu only. It does not create demo users or orders with shared passwords.
 
-## Deploying to Render (Supabase database)
+## Deploying to Render (Render Postgres)
 
 The PHP files above are for local MySQL development. On Render,
 [`server.js`](./server.js) serves the same frontend (`index.html`, `app.js`,
 `style.css`, `IMAGES/menu/`) and sends `api.php` requests to a Node.js port
-of the API in [`api/index.js`](./api/index.js), which uses a Supabase
-(PostgreSQL) database. `app.js` is unchanged. `server.js` serves only those
-frontend files, never the PHP sources, SQL scripts or `.env`.
+of the API in [`api/index.js`](./api/index.js), which uses a Render Postgres
+database. `app.js` is unchanged. `server.js` serves only those frontend
+files, never the PHP sources, SQL scripts or `.env`.
 
-### 1. Create the database
+### 1. Create the database and web service
 
-1. Create a Supabase project.
-2. In **SQL Editor**, run [`supabase_schema.sql`](./supabase_schema.sql).
-   It creates the tables and seeds the menu. **Re-running it deletes all
-   accounts, orders and menu changes.**
-   - Already ran an older version of this script? Run
-     [`supabase_upgrade.sql`](./supabase_upgrade.sql) instead. It keeps your
-     data, adds the new tables, blocks the tables from Supabase's public
-     REST API, and suspends the old `admin@gigisfoodhouse.com` account if its
-     published default password was never changed.
-3. Copy the connection string from **Connect > Connection string**. Use the
-   **Session pooler** URI: Supabase's direct connection is IPv6-only, which
-   Render cannot reach.
+In the Render dashboard choose **New > Blueprint** and pick this repository.
+[`render.yaml`](./render.yaml) creates:
+
+- **gigis-food-house-db**, a Postgres database. Its internal connection
+  string is passed to the web service as `DATABASE_URL` automatically.
+- **gigis-food-house**, the web service (`npm ci`, `npm start`, health check
+  `/healthz`), in the same region (Singapore).
+
+Render asks for `SMTP_USERNAME`, `SMTP_PASSWORD` and `SMTP_FROM` (same as
+for the PHP version, see above; `SMTP_HOST` and `SMTP_PORT` default to
+Gmail). Optional: `APP_BASE_URL` (public URL used in emailed links; defaults
+to the service's `onrender.com` address) and `APP_TIMEZONE` (for the owner's
+"today's sales"; default `Asia/Manila`).
+
+On its first start against the empty database, the web service creates the
+tables and seed menu from [`schema.sql`](./schema.sql). It never changes a
+database that already has the tables. (Running `schema.sql` by hand resets
+the database and deletes all accounts and orders.)
+
+**Free plan limits:**
+- Render deletes a free Postgres database 30 days after it is created
+  unless it is upgraded to a paid plan. Upgrade before then to keep the data.
+- Free web services block outgoing SMTP (ports 25, 465 and 587), so sign-ups
+  and password resets, which need email, only work on a paid instance type.
+  Everything else works on the free plan.
 
 ### 2. Create the owner account
 
-No account is created by the SQL script. From the project folder, with
+After the first deploy has created the tables, run this once from the project folder, with
 Node.js 20 or newer (the password prompt is hidden; the values are removed
 afterward; the password must be at least 12 characters):
 
 ```powershell
 npm install
-$env:DATABASE_URL = Read-Host 'Supabase connection string'
+$env:DATABASE_URL = Read-Host 'External Database URL'
 $env:OWNER_NAME = 'Gigi'
 $env:OWNER_EMAIL = 'owner@example.com'
 $securePassword = Read-Host 'Owner password' -AsSecureString
@@ -84,34 +97,17 @@ try {
 }
 ```
 
-### 3. Create the Render web service
+Use the database's **External Database URL** (Render dashboard > the
+database > **Connect** > External). Leave `DATABASE_SSL` unset for it; the
+connection uses TLS.
 
-In the Render dashboard choose **New > Blueprint** and pick this repository.
-[`render.yaml`](./render.yaml) sets up the web service (`npm ci`,
-`npm start`, health check `/healthz`) and asks for these values:
-
-| Variable | Value |
-| --- | --- |
-| `DATABASE_URL` | Supabase session pooler URI from step 1 |
-| `DATABASE_CA_CERT` | Recommended. Contents of the certificate from Supabase **Database Settings > SSL Configuration > Download certificate**, so the database's identity is verified. Without it the connection is encrypted but not verified. |
-| `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Same as for the PHP version (see above). `SMTP_HOST` and `SMTP_PORT` default to Gmail. |
-
-Optional: `APP_BASE_URL` (public URL used in emailed links; defaults to the
-service's `onrender.com` address) and `APP_TIMEZONE` (for the owner's
-"today's sales"; default `Asia/Manila`).
-
-**Email on the free plan:** Render's free instances block outgoing SMTP
-(ports 25, 465 and 587). Sign-ups and password resets need email, so they
-only work on a paid instance type. Everything else works on the free plan.
-
-### 4. Keep the free instance awake
+### 3. Keep the free instance awake
 
 Render's free plan stops the service after 15 minutes without visitors; the
 next visit then waits about a minute while it starts again. The workflow
 [`.github/workflows/keep-awake.yml`](./.github/workflows/keep-awake.yml)
-loads the menu every 10 minutes, which also keeps the Supabase database from
-being paused for inactivity. If the service's address is not
-`https://gigis-food-house.onrender.com`, set the repository variable
+loads the menu every 10 minutes. If the service's address is not
+`https://gigis-food-stall-i2ut.onrender.com`, set the repository variable
 `SITE_URL` (GitHub **Settings > Secrets and variables > Actions >
 Variables**). GitHub may delay scheduled runs by a few minutes, and turns
 them off after 60 days without commits to the repository.
@@ -126,10 +122,7 @@ them off after 60 days without commits to the repository.
   `product_images` table and served from `api.php?action=image&id=...`,
   because Render's disk is wiped on every deploy. Photos uploaded to a local
   PHP install are not carried over.
-- Row level security is enabled on every table with no policies. The API
-  connects as the database owner, which bypasses it; Supabase's public REST
-  API (anon key) can read nothing.
 
-To run the Node version locally: put `DATABASE_URL` in `.env`, then
-`npm install` and `node --env-file=.env server.js`, and open
-http://localhost:3000.
+To run the Node version locally against any Postgres: put `DATABASE_URL`
+(and `DATABASE_SSL=disable` if it has no TLS) in `.env`, then `npm install`
+and `node --env-file=.env server.js`, and open http://localhost:3000.

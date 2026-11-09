@@ -1,10 +1,10 @@
 name: Keep the site awake
 
-# Render's free plan puts the site to sleep after 15 minutes without visitors,
-# and Supabase's free plan pauses a database after a week without queries.
-# This loads the menu (which reads the database) every 10 minutes.
+# Render's free plan puts the site to sleep after 15 minutes without visitors.
+# This loads the menu every 10 minutes so it stays awake; a failed run also
+# shows that the site or its database is down.
 #
-# If the Render URL is not https://gigis-food-house.onrender.com, set it in
+# If the Render URL is not https://gigis-food-stall-i2ut.onrender.com, set it in
 # GitHub: Settings > Secrets and variables > Actions > Variables > SITE_URL.
 on:
   schedule:
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      SITE_URL: ${{ vars.SITE_URL || 'https://gigis-food-house.onrender.com' }}
+      SITE_URL: ${{ vars.SITE_URL || 'https://gigis-food-stall-i2ut.onrender.com' }}
     steps:
       - name: Load the menu
         run: |

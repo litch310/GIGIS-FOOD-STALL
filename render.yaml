@@ -1,5 +1,15 @@
 # Render Blueprint: New > Blueprint in the Render dashboard, pick this repo.
+# It creates the Postgres database and the web service and connects them.
 # Values marked "sync: false" are asked for when the Blueprint is created.
+databases:
+  - name: gigis-food-house-db
+    databaseName: gigis_food_house
+    user: gigis
+    # Render deletes free databases 30 days after they are created unless
+    # they are upgraded to a paid plan.
+    plan: free
+    region: singapore
+
 services:
   - type: web
     name: gigis-food-house
@@ -15,10 +25,13 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      # Internal connection string over Render's private network
       - key: DATABASE_URL
-        sync: false
-      - key: DATABASE_CA_CERT
-        sync: false
+        fromDatabase:
+          name: gigis-food-house-db
+          property: connectionString
+      - key: DATABASE_SSL
+        value: disable
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT
