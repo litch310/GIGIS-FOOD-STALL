@@ -12,7 +12,9 @@
     "pg": "^8.13.1"
   },
   "scripts": {
-    "check": "node --check api/index.js && node --check lib/db.js && node --check lib/email.js && node --check scripts/create-owner.js",
+    "start": "node server.js",
+    "check": "node --check server.js && node --check api/index.js && node --check lib/db.js && node --check lib/email.js && node --check scripts/create-owner.js",
     "create-owner": "node --env-file-if-exists=.env scripts/create-owner.js"
-  }
+  },
+  "main": "server.js"
 }

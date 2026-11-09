@@ -1,0 +1,33 @@
+# Render Blueprint: New > Blueprint in the Render dashboard, pick this repo.
+# Values marked "sync: false" are asked for when the Blueprint is created.
+services:
+  - type: web
+    name: gigis-food-house
+    runtime: node
+    # Render's free plan blocks outgoing SMTP (ports 25, 465 and 587), so
+    # verification and password reset emails cannot be sent from it. Choose
+    # a paid instance type if customers need to sign up.
+    plan: free
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_CA_CERT
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: APP_TIMEZONE
+        value: Asia/Manila

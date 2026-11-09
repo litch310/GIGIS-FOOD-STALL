@@ -1,5 +1,5 @@
 'use strict';
-// Vercel API for Gigi's Food House. Mirrors the PHP API (api.php + api/*.php)
+// Node.js API for Gigi's Food House (run by server.js on Render). Mirrors the PHP API (api.php + api/*.php)
 // action by action, so app.js works unchanged against either backend.
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
@@ -68,7 +68,7 @@ function parseCookies(req) {
 }
 
 function clientIp(req) {
-  // Vercel sets x-real-ip to the visitor's address
+  // Visitor address as reported by the hosting proxy
   const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return String(req.headers['x-real-ip'] || forwarded || (req.socket && req.socket.remoteAddress) || '').slice(0, 45);
 }
@@ -132,8 +132,8 @@ function castProduct(row) {
 }
 
 // ------------------------------------------------------------
-// Sessions: stored in the database, because each serverless call may run
-// on a different instance. The cookie holds a random token; only its hash
+// Sessions: stored in the database, so they survive restarts and
+// deploys and work across instances. The cookie holds a random token; only its hash
 // is stored. Sessions expire after 12 idle hours.
 // ------------------------------------------------------------
 function setSessionCookie(ctx, token) {
@@ -330,8 +330,8 @@ function imageMime(buffer) {
   return null;
 }
 
-// Vercel has no writable disk, so uploaded photos are stored in the
-// product_images table and served by the "image" action.
+// Render's disk is wiped on every deploy, so uploaded photos are stored
+// in the product_images table and served by the "image" action.
 async function saveUploadedImage(ctx) {
   const file = ctx.files.image;
   if (!file || file.size === 0) return null;
@@ -963,9 +963,8 @@ async function readBody(req) {
     const fileMap = Object.fromEntries(Object.entries(files).map(([key, value]) => [key, first(value)]));
     return { body, files: fileMap };
   }
-  // Vercel parses JSON and urlencoded bodies into req.body
-  const body = req.body && typeof req.body === 'object' ? req.body : {};
-  return { body, files: {} };
+  // app.js always sends multipart forms
+  return { body: {}, files: {} };
 }
 
 async function removeTempFiles(files) {

@@ -38,14 +38,14 @@ Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM
 
 The SQL import seeds the menu only. It does not create demo users or orders with shared passwords.
 
-## Deploying to Vercel (Supabase database)
+## Deploying to Render (Supabase database)
 
-The PHP files above are for local MySQL development. On Vercel the same
-frontend (`index.html`, `app.js`, `style.css`) talks to a Node.js port of the
-API in [`api/index.js`](./api/index.js), which uses a Supabase (PostgreSQL)
-database. Requests to `api.php` are rewritten to it, so `app.js` is unchanged.
-[`.vercelignore`](./.vercelignore) keeps the PHP files, SQL scripts and
-setup tools out of the deployment.
+The PHP files above are for local MySQL development. On Render,
+[`server.js`](./server.js) serves the same frontend (`index.html`, `app.js`,
+`style.css`, `IMAGES/menu/`) and sends `api.php` requests to a Node.js port
+of the API in [`api/index.js`](./api/index.js), which uses a Supabase
+(PostgreSQL) database. `app.js` is unchanged. `server.js` serves only those
+frontend files, never the PHP sources, SQL scripts or `.env`.
 
 ### 1. Create the database
 
@@ -59,8 +59,8 @@ setup tools out of the deployment.
      REST API, and suspends the old `admin@gigisfoodhouse.com` account if its
      published default password was never changed.
 3. Copy the connection string from **Connect > Connection string**. Use the
-   **Transaction pooler** URI (port `6543`); serverless functions open many
-   short connections.
+   **Session pooler** URI: Supabase's direct connection is IPv6-only, which
+   Render cannot reach.
 
 ### 2. Create the owner account
 
@@ -84,32 +84,52 @@ try {
 }
 ```
 
-### 3. Import the project in Vercel
+### 3. Create the Render web service
 
-Import the GitHub repository in Vercel. Keep the defaults: Framework Preset
-**Other**, no build command, root directory `./`. Add these environment
-variables (Project Settings > Environment Variables):
+In the Render dashboard choose **New > Blueprint** and pick this repository.
+[`render.yaml`](./render.yaml) sets up the web service (`npm ci`,
+`npm start`, health check `/healthz`) and asks for these values:
 
 | Variable | Value |
 | --- | --- |
-| `DATABASE_URL` | Supabase transaction pooler URI from step 1 |
+| `DATABASE_URL` | Supabase session pooler URI from step 1 |
 | `DATABASE_CA_CERT` | Recommended. Contents of the certificate from Supabase **Database Settings > SSL Configuration > Download certificate**, so the database's identity is verified. Without it the connection is encrypted but not verified. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Same as for the PHP version (see above) |
-| `APP_BASE_URL` | Public URL used in emailed links, for example `https://gigis-food-house.vercel.app`. Defaults to the project's Vercel production domain. |
-| `APP_TIMEZONE` | Optional. Time zone for the owner's "today's sales" figure. Default `Asia/Manila`. |
+| `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Same as for the PHP version (see above). `SMTP_HOST` and `SMTP_PORT` default to Gmail. |
 
-Sign-ups and password resets need the SMTP settings: accounts are only
-created after the emailed link is opened.
+Optional: `APP_BASE_URL` (public URL used in emailed links; defaults to the
+service's `onrender.com` address) and `APP_TIMEZONE` (for the owner's
+"today's sales"; default `Asia/Manila`).
 
-### How the Vercel version differs from the PHP version
+**Email on the free plan:** Render's free instances block outgoing SMTP
+(ports 25, 465 and 587). Sign-ups and password resets need email, so they
+only work on a paid instance type. Everything else works on the free plan.
+
+### 4. Keep the free instance awake
+
+Render's free plan stops the service after 15 minutes without visitors; the
+next visit then waits about a minute while it starts again. The workflow
+[`.github/workflows/keep-awake.yml`](./.github/workflows/keep-awake.yml)
+loads the menu every 10 minutes, which also keeps the Supabase database from
+being paused for inactivity. If the service's address is not
+`https://gigis-food-house.onrender.com`, set the repository variable
+`SITE_URL` (GitHub **Settings > Secrets and variables > Actions >
+Variables**). GitHub may delay scheduled runs by a few minutes, and turns
+them off after 60 days without commits to the repository.
+
+### How the Render version differs from the PHP version
 
 - Sessions are stored in the `sessions` table instead of PHP session files,
-  because serverless functions have no shared disk. Sessions end after 12
-  idle hours and when the browser closes; resetting a password signs that
-  account out everywhere.
+  so they survive restarts and deploys. Sessions end after 12 idle hours and
+  when the browser closes; resetting a password signs that account out
+  everywhere.
 - Dish photos uploaded in the menu manager are stored in the
-  `product_images` table and served from `api.php?action=image&id=...`.
-  Photos uploaded to a local PHP install are not carried over.
+  `product_images` table and served from `api.php?action=image&id=...`,
+  because Render's disk is wiped on every deploy. Photos uploaded to a local
+  PHP install are not carried over.
 - Row level security is enabled on every table with no policies. The API
   connects as the database owner, which bypasses it; Supabase's public REST
   API (anon key) can read nothing.
+
+To run the Node version locally: put `DATABASE_URL` in `.env`, then
+`npm install` and `node --env-file=.env server.js`, and open
+http://localhost:3000.
