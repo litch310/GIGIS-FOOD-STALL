@@ -6,6 +6,7 @@
 *.sql
 !gigis_food_house.sql
 !supabase_schema.sql
+!supabase_upgrade.sql
 
 # Keys and logs
 *.pem

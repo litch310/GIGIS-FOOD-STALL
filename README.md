@@ -38,29 +38,78 @@ Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM
 
 The SQL import seeds the menu only. It does not create demo users or orders with shared passwords.
 
-## Supabase database script
+## Deploying to Vercel (Supabase database)
 
-Supabase uses PostgreSQL, while `gigis_food_house.sql` is a MySQL dump for local
-phpMyAdmin. To initialize a Supabase project, paste
-[`supabase_schema.sql`](./supabase_schema.sql) into the Supabase SQL Editor.
-That script creates the complete application schema, seeds the nine menu items,
-and creates a temporary owner account:
+The PHP files above are for local MySQL development. On Vercel the same
+frontend (`index.html`, `app.js`, `style.css`) talks to a Node.js port of the
+API in [`api/index.js`](./api/index.js), which uses a Supabase (PostgreSQL)
+database. Requests to `api.php` are rewritten to it, so `app.js` is unchanged.
+[`.vercelignore`](./.vercelignore) keeps the PHP files, SQL scripts and
+setup tools out of the deployment.
 
-- Email: `admin@gigisfoodhouse.com`
-- Password: `ChangeMe123!`
+### 1. Create the database
 
-Change the temporary password immediately after signing in. The current PHP
-backend still uses MySQLi and must be migrated to PostgreSQL before it can use
-this Supabase database or be deployed as-is to Vercel.
+1. Create a Supabase project.
+2. In **SQL Editor**, run [`supabase_schema.sql`](./supabase_schema.sql).
+   It creates the tables and seeds the menu. **Re-running it deletes all
+   accounts, orders and menu changes.**
+   - Already ran an older version of this script? Run
+     [`supabase_upgrade.sql`](./supabase_upgrade.sql) instead. It keeps your
+     data, adds the new tables, blocks the tables from Supabase's public
+     REST API, and suspends the old `admin@gigisfoodhouse.com` account if its
+     published default password was never changed.
+3. Copy the connection string from **Connect > Connection string**. Use the
+   **Transaction pooler** URI (port `6543`); serverless functions open many
+   short connections.
 
-## Vercel migration
+### 2. Create the owner account
 
-The Vercel entrypoint is [`api/index.js`](./api/index.js), and the static
-frontend is [`index.html`](./index.html). In Vercel, add these environment
-variables:
+No account is created by the SQL script. From the project folder, with
+Node.js 20 or newer (the password prompt is hidden; the values are removed
+afterward; the password must be at least 12 characters):
 
-- `DATABASE_URL`: Supabase dashboard > Project Settings > Database > Connection string (URI)
-- `SESSION_SECRET`: a long random string
+```powershell
+npm install
+$env:DATABASE_URL = Read-Host 'Supabase connection string'
+$env:OWNER_NAME = 'Gigi'
+$env:OWNER_EMAIL = 'owner@example.com'
+$securePassword = Read-Host 'Owner password' -AsSecureString
+$passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+try {
+    $env:OWNER_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+    npm run create-owner
+} finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+    Remove-Item Env:OWNER_PASSWORD, Env:OWNER_NAME, Env:OWNER_EMAIL, Env:DATABASE_URL -ErrorAction SilentlyContinue
+}
+```
 
-Deploy from the repository root. The existing PHP files remain available for
-local MySQL development; Vercel uses the Node.js API and `index.html`.
+### 3. Import the project in Vercel
+
+Import the GitHub repository in Vercel. Keep the defaults: Framework Preset
+**Other**, no build command, root directory `./`. Add these environment
+variables (Project Settings > Environment Variables):
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | Supabase transaction pooler URI from step 1 |
+| `DATABASE_CA_CERT` | Recommended. Contents of the certificate from Supabase **Database Settings > SSL Configuration > Download certificate**, so the database's identity is verified. Without it the connection is encrypted but not verified. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Same as for the PHP version (see above) |
+| `APP_BASE_URL` | Public URL used in emailed links, for example `https://gigis-food-house.vercel.app`. Defaults to the project's Vercel production domain. |
+| `APP_TIMEZONE` | Optional. Time zone for the owner's "today's sales" figure. Default `Asia/Manila`. |
+
+Sign-ups and password resets need the SMTP settings: accounts are only
+created after the emailed link is opened.
+
+### How the Vercel version differs from the PHP version
+
+- Sessions are stored in the `sessions` table instead of PHP session files,
+  because serverless functions have no shared disk. Sessions end after 12
+  idle hours and when the browser closes; resetting a password signs that
+  account out everywhere.
+- Dish photos uploaded in the menu manager are stored in the
+  `product_images` table and served from `api.php?action=image&id=...`.
+  Photos uploaded to a local PHP install are not carried over.
+- Row level security is enabled on every table with no policies. The API
+  connects as the database owner, which bypasses it; Supabase's public REST
+  API (anon key) can read nothing.
